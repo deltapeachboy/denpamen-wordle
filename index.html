@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本語 4文字 Wordle</title>
+    <style>
+        :root {
+            --bg-color: #121213;
+            --tile-border: #3a3a3c;
+            --tile-bg: #121213;
+            --color-correct: #538d4e; /* 緑（場所も文字も一致） */
+            --color-present: #b59f3b; /* 黄（文字は含むが場所が違う） */
+            --color-absent: #3a3a3c;  /* 灰（含まれない） */
+            --text-color: #ffffff;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 10px;
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        header {
+            border-bottom: 1px solid var(--tile-border);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 10px 0;
+            font-size: 24px;
+            letter-spacing: 2px;
+        }
+
+        /* ゲームボードのグリッド */
+        #board {
+            display: grid;
+            grid-template-rows: repeat(6, 1fr);
+            gap: 5px;
+            width: 100%;
+            max-width: 280px;
+            margin-bottom: 20px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+        }
+
+        .tile {
+            aspect-ratio: 1;
+            border: 2px solid var(--tile-border);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-sizing: border-box;
+            background-color: var(--tile-bg);
+            transition: background-color 0.5s, border-color 0.5s;
+        }
+
+        /* バーチャルキーボード */
+        #keyboard {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .keyboard-row {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            width: 100%;
+        }
+
+        .key {
+            background-color: #818384;
+            color: var(--text-color);
+            border: 0;
+            padding: 12px 0;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 24px;
+        }
+
+        .key:active {
+            opacity: 0.7;
+        }
+
+        .key.wide {
+            flex: 2;
+            background-color: #565758;
+        }
+
+        /* 判定状態クラス */
+        .correct {
+            background-color: var(--color-correct) !important;
+            border-color: var(--color-correct) !important;
+        }
+
+        .present {
+            background-color: var(--color-present) !important;
+            border-color: var(--color-present) !important;
+        }
+
+        .absent {
+            background-color: var(--color-absent) !important;
+            border-color: var(--color-absent) !important;
+        }
+
+        /* メッセージダイアログ */
+        #message-container {
+            position: fixed;
+            top: 10%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffff;
+            color: #000000;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: bold;
+            box-shadow: 0 4px 23px 0 rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease-out;
+            z-index: 1000;
+        }
+
+        #message-container.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>ひらがな 4文字 WORDLE</h1>
+    </header>
+
+    <div id="message-container"></div>
+    <div id="board"></div>
+    <div id="keyboard"></div>
+
+    <script>
+        // --- 1. 出題用の単語プール (自由に追加・修正してください) ---
+        const words = [
+            "さくら", "つくえ", "てんき", "くるま", "でんわ",
+            "せかい", "すいか", "うみべ", "りんご", "みかん",
+            "きつね", "うさぎ", "ひこう", "えほん", "くつした",
+            "カメラ", "はなび", "あした", "おんがく", "みらい"
+        ];
+
+        // ひらがな・カタカナの正規化（ひらがな化）
+        function toHiragana(str) {
+            return str.replace(/[\u30a1-\u30f6]/g, function(match) {
+                const chr = match.charCodeAt(0) - 0x60;
+                return String.fromCharCode(chr);
+            });
+        }
+
+        // 定数の定義
+        const ROWS = 6;
+        const COLS = 4;
+        let solution = "";
+        let currentRow = 0;
+        let currentCol = 0;
+        let boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(""));
+        let gameOver = false;
+
+        // キーボードレイアウトの定義
+        const KEY_ROWS = [
+            ["あ", "い", "う", "え", "お", "か", "き", "く", "け", "こ"],
+            ["さ", "し", "す", "せ", "そ", "た", "ち", "つ", "て", "と"],
+            ["な", "に", "ぬ", "ね", "の", "は", "ひ", "ふ", "へ", "ほ"],
+            ["ま", "み", "む", "め", "も", "や", "ゆ", "よ", "ら", "り"],
+            ["る", "れ", "ろ", "わ", "を", "ん", "ー", "゛", "゜"],
+            ["消去", "決定"]
+        ];
+
+        // --- ゲームの初期化 ---
+        function initGame() {
+            // ランダムに単語を選択し、ひらがなに統一
+            const rawWord = words[Math.floor(Math.random() * words.length)];
+            solution = toHiragana(rawWord);
+
+            // デバッグ用 (開発時にコンソールで答えを確認できます)
+            console.log("正解:", solution);
+
+            // ボードの描画
+            const board = document.getElementById("board");
+            board.innerHTML = "";
+            for (let r = 0; r < ROWS; r++) {
+                const rowDiv = document.createElement("div");
+                rowDiv.className = "row";
+                for (let c = 0; r < ROWS && c < COLS; c++) {
+                    const tileDiv = document.createElement("div");
+                    tileDiv.className = "tile";
+                    tileDiv.id = `tile-${r}-${c}`;
+                    rowDiv.appendChild(tileDiv);
+                }
+                board.appendChild(rowDiv);
+            }
+
+            // キーボードの描画
+            const keyboard = document.getElementById("keyboard");
+            keyboard.innerHTML = "";
+            KEY_ROWS.forEach(row => {
+                const rowDiv = document.createElement("div");
+                rowDiv.className = "keyboard-row";
+                row.forEach(char => {
+                    const keyBtn = document.createElement("button");
+                    keyBtn.className = "key";
+                    keyBtn.textContent = char;
+                    if (char === "消去" || char === "決定") {
+                        keyBtn.classList.add("wide");
+                    }
+                    keyBtn.addEventListener("click", () => handleInput(char));
+                    rowDiv.appendChild(keyBtn);
+                });
+                keyboard.appendChild(rowDiv);
+            });
+        }
+
+        // --- 入力処理 ---
+        function handleInput(key) {
+            if (gameOver) return;
+
+            if (key === "消去" || key === "Backspace") {
+                if (currentCol > 0) {
+                    currentCol--;
+                    boardState[currentRow][currentCol] = "";
+                    updateBoard();
+                }
+            } else if (key === "決定" || key === "Enter") {
+                if (currentCol === COLS) {
+                    submitGuess();
+                } else {
+                    showMessage("文字数が足りません");
+                }
+            } else if (key === "゛" || key === "゜") {
+                // 濁点・半濁点の結合処理
+                applyDiacritic(key);
+            } else {
+                // 通常の文字入力
+                if (currentCol < COLS) {
+                    boardState[currentRow][currentCol] = key;
+                    currentCol++;
+                    updateBoard();
+                }
+            }
+        }
+
+        // 濁点・半濁点を直前の文字に合成する
+        function applyDiacritic(diacritic) {
+            if (currentCol === 0) return;
+            const targetCol = currentCol - 1;
+            const lastChar = boardState[currentRow][targetCol];
+            let combined = lastChar;
+
+            if (diacritic === "゛") {
+                combined = lastChar.normalize("NFD") + "\u3099";
+            } else if (diacritic === "゜") {
+                combined = lastChar.normalize("NFD") + "\u309a";
+            }
+
+            // 合成結果を標準化形式(NFC)に直して反映
+            boardState[currentRow][targetCol] = combined.normalize("NFC");
+            updateBoard();
+        }
+
+        // 画面ボード表示の更新
+        function updateBoard() {
+            for (let c = 0; c < COLS; c++) {
+                const tile = document.getElementById(`tile-${currentRow}-${c}`);
+                tile.textContent = boardState[currentRow][c] || "";
+            }
+        }
+
+        // --- 判定の実行 ---
+        function submitGuess() {
+            const guess = boardState[currentRow].join("");
+            const solutionLetterCount = {};
+
+            // 正解単語の各文字数をカウント（複数含まれる文字の重複黄色判定を防ぐため）
+            for (let i = 0; i < COLS; i++) {
+                const char = solution[i];
+                solutionLetterCount[char] = (solutionLetterCount[char] || 0) + 1;
+            }
+
+            const rowTiles = [];
+            for (let i = 0; i < COLS; i++) {
+                rowTiles.push(document.getElementById(`tile-${currentRow}-${i}`));
+            }
+
+            const results = Array(COLS).fill("absent");
+
+            // 1回目の走査: 緑（完全一致）の判定
+            for (let i = 0; i < COLS; i++) {
+                if (guess[i] === solution[i]) {
+                    results[i] = "correct";
+                    solutionLetterCount[guess[i]]--;
+                }
+            }
+
+            // 2回目の走査: 黄色（文字は存在するが位置が異なる）の判定
+            for (let i = 0; i < COLS; i++) {
+                if (results[i] !== "correct") {
+                    if (solution.includes(guess[i]) && solutionLetterCount[guess[i]] > 0) {
+                        results[i] = "present";
+                        solutionLetterCount[guess[i]]--;
+                    }
+                }
+            }
+
+            // タイルへのカラークラス反映
+            for (let i = 0; i < COLS; i++) {
+                rowTiles[i].classList.add(results[i]);
+                updateKeyColor(guess[i], results[i]);
+            }
+
+            // ゲーム終了判定
+            if (guess === solution) {
+                showMessage("おめでとうございます！");
+                gameOver = true;
+            } else if (currentRow === ROWS - 1) {
+                showMessage(`ゲームオーバー。正解は「${solution}」でした`);
+                gameOver = true;
+            } else {
+                currentRow++;
+                currentCol = 0;
+            }
+        }
+
+        // キーボードキーの背景色の更新
+        function updateKeyColor(char, state) {
+            const keys = document.getElementsByClassName("key");
+            for (let i = 0; i < keys.length; i++) {
+                if (keys[i].textContent === char) {
+                    // より優先度の高い判定（correct > present > absent）を上書きしないようにする
+                    if (keys[i].classList.contains("correct")) return;
+                    if (keys[i].classList.contains("present") && state === "absent") return;
+
+                    keys[i].classList.remove("correct", "present", "absent");
+                    keys[i].classList.add(state);
+                    break;
+                }
+            }
+        }
+
+        // メッセージ表示機能
+        function showMessage(msg, duration = 3000) {
+            const container = document.getElementById("message-container");
+            container.textContent = msg;
+            container.classList.add("show");
+            setTimeout(() => {
+                container.classList.remove("show");
+            }, duration);
+        }
+
+        // 物理キーボードによる入力サポート（ひらがな直接入力を想定）
+        document.addEventListener("keydown", (e) => {
+            if (gameOver) return;
+
+            if (e.key === "Enter") {
+                handleInput("決定");
+            } else if (e.key === "Backspace") {
+                handleInput("消去");
+            } else {
+                // ひらがな1文字の入力を検知（正規表現で簡易チェック）
+                const hiraRegex = /^[\u3041-\u3096ー]$/;
+                if (hiraRegex.test(e.key)) {
+                    handleInput(e.key);
+                }
+            }
+        });
+
+        // 起動
+        window.onload = initGame;
+    </script>
+</body>
+</html>
