@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>日本語 4文字 Wordle</title>
+    <title>電波人間Wordle</title>
     <style>
         :root {
             --bg-color: #121213;
@@ -26,6 +26,7 @@
             padding: 10px;
             min-height: 100vh;
             user-select: none;
+            box-sizing: border-box;
         }
 
         header {
@@ -33,38 +34,47 @@
             width: 100%;
             max-width: 500px;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         h1 {
-            margin: 10px 0;
-            font-size: 24px;
+            margin: 5px 0;
+            font-size: 22px;
             letter-spacing: 2px;
         }
 
-        /* ゲームボードのグリッド */
-        #board {
-            display: grid;
-            grid-template-rows: repeat(6, 1fr);
-            gap: 5px;
+        /* ボード全体のコンテナ（横に2列並べるための設定） */
+        #board-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px; /* 左右のボードの隙間 */
             width: 100%;
-            max-width: 280px;
-            margin-bottom: 20px;
+            max-width: 460px; /* 2列が収まる幅に調整 */
+            margin-bottom: 15px;
+        }
+
+        /* 左右それぞれの列（縦5行のグリッド） */
+        .board-column {
+            display: grid;
+            grid-template-rows: repeat(5, 1fr);
+            gap: 4px;
+            flex: 1;
+            max-width: 210px;
         }
 
         .row {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 5px;
+            grid-template-columns: repeat(5, 1fr); /* 5文字 */
+            gap: 4px;
         }
 
         .tile {
             aspect-ratio: 1;
-            border: 2px solid var(--tile-border);
+            border: 1.5px solid var(--tile-border);
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 24px;
+            font-size: 16px;
             font-weight: bold;
             text-transform: uppercase;
             box-sizing: border-box;
@@ -78,7 +88,7 @@
             max-width: 480px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 5px;
         }
 
         .keyboard-row {
@@ -92,8 +102,8 @@
             background-color: #818384;
             color: var(--text-color);
             border: 0;
-            padding: 12px 0;
-            font-size: 14px;
+            padding: 10px 0;
+            font-size: 13px;
             font-weight: bold;
             border-radius: 4px;
             cursor: pointer;
@@ -101,7 +111,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            min-width: 24px;
+            min-width: 20px;
         }
 
         .key:active {
@@ -155,20 +165,27 @@
 <body>
 
     <header>
-        <h1>ひらがな 4文字 WORDLE</h1>
+        <h1>電波人間Wordle</h1>
     </header>
 
     <div id="message-container"></div>
-    <div id="board"></div>
+
+    <div id="board-container">
+        <div id="board-left" class="board-column"></div>
+        <div id="board-right" class="board-column"></div>
+    </div>
+
     <div id="keyboard"></div>
 
     <script>
-        // --- 1. 出題用の単語プール (自由に追加・修正してください) ---
+        // --- 1. 出題用の単語プール ---
         const words = [
-            "さくら", "つくえ", "てんき", "くるま", "でんわ",
-            "せかい", "すいか", "うみべ", "りんご", "みかん",
-            "きつね", "うさぎ", "ひこう", "えほん", "くつした",
-            "カメラ", "はなび", "あした", "おんがく", "みらい"
+            "ねんじょれ",
+            "しゅじほせ",
+            "ちょうえき",
+            "えりあーの",
+            "はいちゃれ",
+            "いじょたい"
         ];
 
         // ひらがな・カタカナの正規化（ひらがな化）
@@ -179,37 +196,48 @@
             });
         }
 
-        // 定数の定義
-        const ROWS = 6;
-        const COLS = 4;
+        // 定数の定義（10行・5文字）
+        const ROWS = 10;
+        const COLS = 5;
         let solution = "";
         let currentRow = 0;
         let currentCol = 0;
         let boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(""));
         let gameOver = false;
 
-        // キーボードレイアウトの定義
+        // キーボードレイアウトの定義（「小」キーを追加）
         const KEY_ROWS = [
             ["あ", "い", "う", "え", "お", "か", "き", "く", "け", "こ"],
             ["さ", "し", "す", "せ", "そ", "た", "ち", "つ", "て", "と"],
             ["な", "に", "ぬ", "ね", "の", "は", "ひ", "ふ", "へ", "ほ"],
             ["ま", "み", "む", "め", "も", "や", "ゆ", "よ", "ら", "り"],
-            ["る", "れ", "ろ", "わ", "を", "ん", "ー", "゛", "゜"],
+            ["る", "れ", "ろ", "わ", "を", "ん", "ー", "小", "゛", "゜"],
             ["消去", "決定"]
         ];
 
+        // 大文字から小文字への変換マップ
+        const largeToSmall = {
+            "あ": "ぁ", "い": "ぃ", "う": "ぅ", "え": "え", "お": "ぉ",
+            "つ": "っ", "や": "ゃ", "ゆ": "ゅ", "よ": "ょ"
+        };
+        // 小文字から大文字への変換マップ
+        const smallToLarge = {
+            "ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お",
+            "っ": "つ", "ゃ": "や", "ゅ": "ゆ", "ょ": "よ"
+        };
+
         // --- ゲームの初期化 ---
         function initGame() {
-            // ランダムに単語を選択し、ひらがなに統一
             const rawWord = words[Math.floor(Math.random() * words.length)];
             solution = toHiragana(rawWord);
 
-            // デバッグ用 (開発時にコンソールで答えを確認できます)
             console.log("正解:", solution);
 
-            // ボードの描画
-            const board = document.getElementById("board");
-            board.innerHTML = "";
+            const boardLeft = document.getElementById("board-left");
+            const boardRight = document.getElementById("board-right");
+            boardLeft.innerHTML = "";
+            boardRight.innerHTML = "";
+
             for (let r = 0; r < ROWS; r++) {
                 const rowDiv = document.createElement("div");
                 rowDiv.className = "row";
@@ -219,10 +247,14 @@
                     tileDiv.id = `tile-${r}-${c}`;
                     rowDiv.appendChild(tileDiv);
                 }
-                board.appendChild(rowDiv);
+
+                if (r < 5) {
+                    boardLeft.appendChild(rowDiv);
+                } else {
+                    boardRight.appendChild(rowDiv);
+                }
             }
 
-            // キーボードの描画
             const keyboard = document.getElementById("keyboard");
             keyboard.innerHTML = "";
             KEY_ROWS.forEach(row => {
@@ -259,10 +291,10 @@
                     showMessage("文字数が足りません");
                 }
             } else if (key === "゛" || key === "゜") {
-                // 濁点・半濁点の結合処理
                 applyDiacritic(key);
+            } else if (key === "小") {
+                applySmallChar();
             } else {
-                // 通常の文字入力
                 if (currentCol < COLS) {
                     boardState[currentRow][currentCol] = key;
                     currentCol++;
@@ -271,7 +303,7 @@
             }
         }
 
-        // 濁点・半濁点を直前の文字に合成する
+        // 濁点・半濁点の結合処理
         function applyDiacritic(diacritic) {
             if (currentCol === 0) return;
             const targetCol = currentCol - 1;
@@ -284,8 +316,21 @@
                 combined = lastChar.normalize("NFD") + "\u309a";
             }
 
-            // 合成結果を標準化形式(NFC)に直して反映
             boardState[currentRow][targetCol] = combined.normalize("NFC");
+            updateBoard();
+        }
+
+        // 小書き文字（小文字）への変換・復元処理
+        function applySmallChar() {
+            if (currentCol === 0) return;
+            const targetCol = currentCol - 1;
+            const lastChar = boardState[currentRow][targetCol];
+
+            if (largeToSmall[lastChar]) {
+                boardState[currentRow][targetCol] = largeToSmall[lastChar];
+            } else if (smallToLarge[lastChar]) {
+                boardState[currentRow][targetCol] = smallToLarge[lastChar];
+            }
             updateBoard();
         }
 
@@ -302,7 +347,6 @@
             const guess = boardState[currentRow].join("");
             const solutionLetterCount = {};
 
-            // 正解単語の各文字数をカウント（複数含まれる文字の重複黄色判定を防ぐため）
             for (let i = 0; i < COLS; i++) {
                 const char = solution[i];
                 solutionLetterCount[char] = (solutionLetterCount[char] || 0) + 1;
@@ -315,7 +359,6 @@
 
             const results = Array(COLS).fill("absent");
 
-            // 1回目の走査: 緑（完全一致）の判定
             for (let i = 0; i < COLS; i++) {
                 if (guess[i] === solution[i]) {
                     results[i] = "correct";
@@ -323,7 +366,6 @@
                 }
             }
 
-            // 2回目の走査: 黄色（文字は存在するが位置が異なる）の判定
             for (let i = 0; i < COLS; i++) {
                 if (results[i] !== "correct") {
                     if (solution.includes(guess[i]) && solutionLetterCount[guess[i]] > 0) {
@@ -333,13 +375,11 @@
                 }
             }
 
-            // タイルへのカラークラス反映
             for (let i = 0; i < COLS; i++) {
                 rowTiles[i].classList.add(results[i]);
                 updateKeyColor(guess[i], results[i]);
             }
 
-            // ゲーム終了判定
             if (guess === solution) {
                 showMessage("おめでとうございます！");
                 gameOver = true;
@@ -357,7 +397,6 @@
             const keys = document.getElementsByClassName("key");
             for (let i = 0; i < keys.length; i++) {
                 if (keys[i].textContent === char) {
-                    // より優先度の高い判定（correct > present > absent）を上書きしないようにする
                     if (keys[i].classList.contains("correct")) return;
                     if (keys[i].classList.contains("present") && state === "absent") return;
 
@@ -378,7 +417,7 @@
             }, duration);
         }
 
-        // 物理キーボードによる入力サポート（ひらがな直接入力を想定）
+        // 物理キーボードによる入力サポート
         document.addEventListener("keydown", (e) => {
             if (gameOver) return;
 
@@ -387,7 +426,6 @@
             } else if (e.key === "Backspace") {
                 handleInput("消去");
             } else {
-                // ひらがな1文字の入力を検知（正規表現で簡易チェック）
                 const hiraRegex = /^[\u3041-\u3096ー]$/;
                 if (hiraRegex.test(e.key)) {
                     handleInput(e.key);
@@ -395,7 +433,6 @@
             }
         });
 
-        // 起動
         window.onload = initGame;
     </script>
 </body>
