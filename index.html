@@ -43,14 +43,15 @@
             letter-spacing: 2px;
         }
 
-        /* ボード全体のコンテナ（横に2列並べるための設定） */
+        /* ボード全体のコンテナ（多文字数に対応するため最大幅を調整） */
         #board-container {
             display: flex;
             justify-content: center;
             gap: 15px; /* 左右のボードの隙間 */
             width: 100%;
-            max-width: 460px; /* 2列が収まる幅に調整 */
+            max-width: 95%; /* 画面幅に合わせて伸縮 */
             margin-bottom: 15px;
+            box-sizing: border-box;
         }
 
         /* 左右それぞれの列（縦5行のグリッド） */
@@ -59,12 +60,12 @@
             grid-template-rows: repeat(5, 1fr);
             gap: 4px;
             flex: 1;
-            max-width: 210px;
+            max-width: 280px; /* 最大幅を少し拡張 */
         }
 
         .row {
             display: grid;
-            grid-template-columns: repeat(5, 1fr); /* 5文字 */
+            /* grid-template-columnsはJavaScriptで動的に指定します */
             gap: 4px;
         }
 
@@ -74,12 +75,36 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 16px;
             font-weight: bold;
             text-transform: uppercase;
             box-sizing: border-box;
             background-color: var(--tile-bg);
             transition: background-color 0.5s, border-color 0.5s;
+        }
+
+        /* もう一度遊ぶボタンエリア */
+        #restart-container {
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .restart-button {
+            background-color: var(--color-correct);
+            color: var(--text-color);
+            border: none;
+            padding: 10px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: opacity 0.2s;
+        }
+
+        .restart-button:active {
+            opacity: 0.8;
         }
 
         /* バーチャルキーボード */
@@ -121,6 +146,11 @@
         .key.wide {
             flex: 2;
             background-color: #565758;
+        }
+
+        /* 「大/小」ボタン専用スタイル */
+        .key.special {
+            background-color: #2a69ac; /* 鮮やかなブルー */
         }
 
         /* 判定状態クラス */
@@ -175,17 +205,28 @@
         <div id="board-right" class="board-column"></div>
     </div>
 
+    <div id="restart-container" style="display: none;">
+        <button id="restart-btn" class="restart-button">もう一度遊ぶ</button>
+    </div>
+
     <div id="keyboard"></div>
 
     <script>
-        // --- 1. 出題用の単語プール ---
+        // --- 1. 出題用の単語プール（指定された全リストをひらがな化・2文字〜10文字） ---
         const words = [
-            "ねんじょれ",
-            "しゅじほせ",
-            "ちょうえき",
-            "えりあーの",
-            "はいちゃれ",
-            "いじょたい"
+            // 前回の指定（5文字）
+            "ねんじょれ", "しゅじほせ", "ちょうえき", "えりあーの", "はいちゃれ", "いじょたい",
+            "かいせき", "でんぱかいわい", "じにあす", "ていた", "こうた", "じんいこたい",
+            "おきもちひょうめい", "ふれんどたいせん", "かそ", "びゃくうせん", "らんこ",
+            "じぇもり", "ももももはながら", "むてきかいじょ", "こうしき", "いちぽいんと",
+            "すばらしい", "ぐりーんぴーす", "ねんこうじょれつ", "ぶいほせい", "かんきち",
+            "ごじ", "こているーと", "ぎじんか", "えすぴーからー", "こうてつきっく",
+            "にゅふ", "いてび", "うもこも", "くろめいどのくつ", "むげん",
+            "すたちけ", "きんきん", "ばとるたわー", "いってびーがら", "きゅふ", "りようきやく",
+            "れんしゃこん", "かおさいげん", "かべぬけ", "きんのすぷりんくらー", "あおはるむ",
+            "らうんじ", "しんぴのねくたい", "ぴね", "しね", "さいこうさいぜん",
+            "しんらばんしょう", "しっぷつ", "しっぷうぶーつ", "おおかみのかお", "すくりゅー",
+            "じょもん", "じょおうのもんしょう"
         ];
 
         // ひらがな・カタカナの正規化（ひらがな化）
@@ -196,31 +237,31 @@
             });
         }
 
-        // 定数の定義（10行・5文字）
+        // 変数定義
         const ROWS = 10;
-        const COLS = 5;
+        let COLS = 5;
         let solution = "";
         let currentRow = 0;
         let currentCol = 0;
-        let boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(""));
+        let boardState = [];
         let gameOver = false;
 
-        // キーボードレイアウトの定義（「小」キーを追加）
+        // キーボードレイアウトの定義
         const KEY_ROWS = [
             ["あ", "い", "う", "え", "お", "か", "き", "く", "け", "こ"],
             ["さ", "し", "す", "せ", "そ", "た", "ち", "つ", "て", "と"],
             ["な", "に", "ぬ", "ね", "の", "は", "ひ", "ふ", "へ", "ほ"],
             ["ま", "み", "む", "め", "も", "や", "ゆ", "よ", "ら", "り"],
-            ["る", "れ", "ろ", "わ", "を", "ん", "ー", "小", "゛", "゜"],
+            ["る", "れ", "ろ", "わ", "を", "ん", "ー", "大/小", "゛", "゜"],
             ["消去", "決定"]
         ];
 
-        // 大文字から小文字への変換マップ
+        // 大文字から小文字への変換マップ（え/ぇを追加）
         const largeToSmall = {
-            "あ": "ぁ", "い": "ぃ", "う": "ぅ", "え": "え", "お": "ぉ",
+            "あ": "ぁ", "い": "ぃ", "う": "ぅ", "え": "ぇ", "お": "ぉ",
             "つ": "っ", "や": "ゃ", "ゆ": "ゅ", "よ": "ょ"
         };
-        // 小文字から大文字への変換マップ
+        // 小文字から大文字への変換マップ（ぇ/えを追加）
         const smallToLarge = {
             "ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お",
             "っ": "つ", "ゃ": "や", "ゅ": "ゆ", "ょ": "よ"
@@ -231,7 +272,18 @@
             const rawWord = words[Math.floor(Math.random() * words.length)];
             solution = toHiragana(rawWord);
 
-            console.log("正解:", solution);
+            COLS = solution.length;
+            boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(""));
+
+            console.log("正解:", solution, `(${COLS}文字)`);
+
+            // 文字数(COLS)が多い場合にタイル内のフォントサイズを縮小してはみ出しを防止
+            let fontSize = "16px";
+            if (COLS >= 8) {
+                fontSize = "11px";
+            } else if (COLS >= 6) {
+                fontSize = "13px";
+            }
 
             const boardLeft = document.getElementById("board-left");
             const boardRight = document.getElementById("board-right");
@@ -241,10 +293,13 @@
             for (let r = 0; r < ROWS; r++) {
                 const rowDiv = document.createElement("div");
                 rowDiv.className = "row";
+                rowDiv.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+
                 for (let c = 0; r < ROWS && c < COLS; c++) {
                     const tileDiv = document.createElement("div");
                     tileDiv.className = "tile";
                     tileDiv.id = `tile-${r}-${c}`;
+                    tileDiv.style.fontSize = fontSize; // フォントサイズを動的に反映
                     rowDiv.appendChild(tileDiv);
                 }
 
@@ -266,6 +321,9 @@
                     keyBtn.textContent = char;
                     if (char === "消去" || char === "決定") {
                         keyBtn.classList.add("wide");
+                    }
+                    if (char === "大/小") {
+                        keyBtn.classList.add("special");
                     }
                     keyBtn.addEventListener("click", () => handleInput(char));
                     rowDiv.appendChild(keyBtn);
@@ -292,7 +350,7 @@
                 }
             } else if (key === "゛" || key === "゜") {
                 applyDiacritic(key);
-            } else if (key === "小") {
+            } else if (key === "大/小") {
                 applySmallChar();
             } else {
                 if (currentCol < COLS) {
@@ -320,7 +378,7 @@
             updateBoard();
         }
 
-        // 小書き文字（小文字）への変換・復元処理
+        // 小書き文字への変換・復元処理
         function applySmallChar() {
             if (currentCol === 0) return;
             const targetCol = currentCol - 1;
@@ -383,9 +441,11 @@
             if (guess === solution) {
                 showMessage("おめでとうございます！");
                 gameOver = true;
+                showRestartButton();
             } else if (currentRow === ROWS - 1) {
                 showMessage(`ゲームオーバー。正解は「${solution}」でした`);
                 gameOver = true;
+                showRestartButton();
             } else {
                 currentRow++;
                 currentCol = 0;
@@ -405,6 +465,20 @@
                     break;
                 }
             }
+        }
+
+        // もう一度遊ぶボタンの表示
+        function showRestartButton() {
+            document.getElementById("restart-container").style.display = "block";
+        }
+
+        // ゲームのリセット処理
+        function resetGame() {
+            document.getElementById("restart-container").style.display = "none";
+            currentRow = 0;
+            currentCol = 0;
+            gameOver = false;
+            initGame();
         }
 
         // メッセージ表示機能
@@ -432,6 +506,9 @@
                 }
             }
         });
+
+        // ボタンの初期紐付け
+        document.getElementById("restart-btn").addEventListener("click", resetGame);
 
         window.onload = initGame;
     </script>
