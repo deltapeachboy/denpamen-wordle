@@ -43,13 +43,13 @@
             letter-spacing: 2px;
         }
 
-        /* ボード全体のコンテナ（多文字数に対応するため最大幅を調整） */
+        /* ボード全体のコンテナ */
         #board-container {
             display: flex;
             justify-content: center;
-            gap: 15px; /* 左右のボードの隙間 */
+            gap: 15px;
             width: 100%;
-            max-width: 95%; /* 画面幅に合わせて伸縮 */
+            max-width: 95%;
             margin-bottom: 15px;
             box-sizing: border-box;
         }
@@ -60,12 +60,11 @@
             grid-template-rows: repeat(5, 1fr);
             gap: 4px;
             flex: 1;
-            max-width: 280px; /* 最大幅を少し拡張 */
+            max-width: 280px;
         }
 
         .row {
             display: grid;
-            /* grid-template-columnsはJavaScriptで動的に指定します */
             gap: 4px;
         }
 
@@ -75,11 +74,21 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            font-weight: bold;
-            text-transform: uppercase;
             box-sizing: border-box;
             background-color: var(--tile-bg);
             transition: background-color 0.5s, border-color 0.5s;
+
+            /* タイル自体をコンテナサイズ計測の対象にする */
+            container-type: inline-size;
+        }
+
+        /* 枠の大きさに合わせて文字サイズを自動連動 */
+        .tile-text {
+            font-weight: bold;
+            text-transform: uppercase;
+            /* コンテナ（枠）の横幅の50%のサイズに常に同期する */
+            font-size: 50cqw;
+            line-height: 1;
         }
 
         /* もう一度遊ぶボタンエリア */
@@ -113,13 +122,13 @@
             max-width: 480px;
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 4px;
         }
 
         .keyboard-row {
             display: flex;
             justify-content: center;
-            gap: 4px;
+            gap: 3px;
             width: 100%;
         }
 
@@ -127,16 +136,16 @@
             background-color: #818384;
             color: var(--text-color);
             border: 0;
-            padding: 10px 0;
-            font-size: 13px;
+            padding: 6px 0;
+            font-size: 11px;
             font-weight: bold;
-            border-radius: 4px;
+            border-radius: 3px;
             cursor: pointer;
             flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-width: 20px;
+            min-width: 18px;
         }
 
         .key:active {
@@ -150,7 +159,7 @@
 
         /* 「大/小」ボタン専用スタイル */
         .key.special {
-            background-color: #2a69ac; /* 鮮やかなブルー */
+            background-color: #2a69ac;
         }
 
         /* 判定状態クラス */
@@ -214,19 +223,19 @@
     <script>
         // --- 1. 出題用の単語プール（指定された全リストをひらがな化・2文字〜10文字） ---
         const words = [
-            // 前回の指定（5文字）
             "ねんじょれ", "しゅじほせ", "ちょうえき", "えりあーの", "はいちゃれ", "いじょたい",
             "かいせき", "でんぱかいわい", "じにあす", "ていた", "こうた", "じんいこたい",
-            "おきもちひょうめい", "ふれんどたいせん", "かそ", "びゃくうせん", "らんこ",
+            "ふれんどたいせん", "かそ", "びゃくうせん", "らんこ",
             "じぇもり", "ももももはながら", "むてきかいじょ", "こうしき", "いちぽいんと",
-            "すばらしい", "ぐりーんぴーす", "ねんこうじょれつ", "ぶいほせい", "かんきち",
+            "ぐりーんぴーす", "ねんこうじょれつ", "ぶいほせい", "かんきち",
             "ごじ", "こているーと", "ぎじんか", "えすぴーからー", "こうてつきっく",
             "にゅふ", "いてび", "うもこも", "くろめいどのくつ", "むげん",
             "すたちけ", "きんきん", "ばとるたわー", "いってびーがら", "きゅふ", "りようきやく",
-            "れんしゃこん", "かおさいげん", "かべぬけ", "きんのすぷりんくらー", "あおはるむ",
-            "らうんじ", "しんぴのねくたい", "ぴね", "しね", "さいこうさいぜん",
-            "しんらばんしょう", "しっぷつ", "しっぷうぶーつ", "おおかみのかお", "すくりゅー",
-            "じょもん", "じょおうのもんしょう"
+            "れんしゃこん", "かおさいげん", "かべぬけ", "きんのすぷりんくらー",
+            "らうんじ", "しんぴのねくたい", "ぴね", "しっぷつ", "しっぷうぶーつ", "おおかみのかお", "すくりゅー",
+            "じょもん", "じょおうのもんしょう", "かんくや", "ふぐあい", "かほうしゅうせい",
+            "れあきゃ", "いべきゃ", "いべすて", "すこあきんぐ", "さいきょうとうしん", "してんのう",
+            "あいてむどろっぷ", "ぎむ", ”へんきん", "ろぐぼ", "かいぞくうっきー", "バナナ"
         ];
 
         // ひらがな・カタカナの正規化（ひらがな化）
@@ -253,15 +262,17 @@
             ["な", "に", "ぬ", "ね", "の", "は", "ひ", "ふ", "へ", "ほ"],
             ["ま", "み", "む", "め", "も", "や", "ゆ", "よ", "ら", "り"],
             ["る", "れ", "ろ", "わ", "を", "ん", "ー", "大/小", "゛", "゜"],
-            ["消去", "決定"]
+            ["が", "ぎ", "ぐ", "げ", "ご", "ざ", "じ", "ず", "ぜ", "ぞ"],
+            ["だ", "ぢ", "づ", "で", "ど", "ば", "び", "ぶ", "べ", "ぼ"],
+            ["ぱ", "ぴ", "ぷ", "ぺ", "ぽ", "消去", "決定"]
         ];
 
-        // 大文字から小文字への変換マップ（え/ぇを追加）
+        // 大文字から小文字への変換マップ
         const largeToSmall = {
             "あ": "ぁ", "い": "ぃ", "う": "ぅ", "え": "ぇ", "お": "ぉ",
             "つ": "っ", "や": "ゃ", "ゆ": "ゅ", "よ": "ょ"
         };
-        // 小文字から大文字への変換マップ（ぇ/えを追加）
+        // 小文字から大文字への変換マップ
         const smallToLarge = {
             "ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お",
             "っ": "つ", "ゃ": "や", "ゅ": "ゆ", "ょ": "よ"
@@ -277,14 +288,6 @@
 
             console.log("正解:", solution, `(${COLS}文字)`);
 
-            // 文字数(COLS)が多い場合にタイル内のフォントサイズを縮小してはみ出しを防止
-            let fontSize = "16px";
-            if (COLS >= 8) {
-                fontSize = "11px";
-            } else if (COLS >= 6) {
-                fontSize = "13px";
-            }
-
             const boardLeft = document.getElementById("board-left");
             const boardRight = document.getElementById("board-right");
             boardLeft.innerHTML = "";
@@ -299,7 +302,12 @@
                     const tileDiv = document.createElement("div");
                     tileDiv.className = "tile";
                     tileDiv.id = `tile-${r}-${c}`;
-                    tileDiv.style.fontSize = fontSize; // フォントサイズを動的に反映
+
+                    // 文字枠の中に文字表示用のspanを生成（サイズ自動連動のため）
+                    const textSpan = document.createElement("span");
+                    textSpan.className = "tile-text";
+                    tileDiv.appendChild(textSpan);
+
                     rowDiv.appendChild(tileDiv);
                 }
 
@@ -322,7 +330,7 @@
                     if (char === "消去" || char === "決定") {
                         keyBtn.classList.add("wide");
                     }
-                    if (char === "大/小") {
+                    if (char === "大/小" || char === "゛" || char === "゜") {
                         keyBtn.classList.add("special");
                     }
                     keyBtn.addEventListener("click", () => handleInput(char));
@@ -392,11 +400,12 @@
             updateBoard();
         }
 
-        // 画面ボード表示の更新
+        // 画面ボード表示の更新（span内のテキストを更新するように変更）
         function updateBoard() {
             for (let c = 0; c < COLS; c++) {
                 const tile = document.getElementById(`tile-${currentRow}-${c}`);
-                tile.textContent = boardState[currentRow][c] || "";
+                const span = tile.querySelector(".tile-text");
+                span.textContent = boardState[currentRow][c] || "";
             }
         }
 
